@@ -1,0 +1,13 @@
+{
+    "domains":[
+    {
+        "name":"template",
+        "tests":[
+            {"name":"tests/template/template1/template1", "args":"none"},
+            {"name":"tests/template/template2/template2", "args":"none"},
+            {"name":"tests/template/template2/template2", "args":"none", "timeout":1},
+            {"name":"tests/template/template2/templatenotrun", "args":"none"}
+        ]
+    }
+    ]
+}

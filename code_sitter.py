@@ -1,18 +1,31 @@
 #!/usr/bin/env python
-import sys, os, json
+import sys, os, json, traceback
 from datetime import datetime
 from subprocess import Popen, PIPE
 
 from code_sitter_cmd import build_recipe_C, build_recipe_SM, subcommand
 
-def main(config_file):
+def main(config_file, test_file=None):
     current_path = os.getcwd()
+    tests=None
+
     try:
         fp = open(config_file)
         jsconfig = json.load(fp)
+        fp.close()
     except Exception as e:
         print "Unable to read configuration file '%s': %s\n"%(config_file, str(e))
         sys.exit(-1)
+
+    if test_file != None:
+        try:
+            fp = open(test_file)
+            tests = json.load(fp)
+            fp.close()
+        except Exception as e:
+            print "Unable to read test suite file '%s': %s\n"%(test_file, str(e))
+            sys.exit(-1)
+
     try:
         config = jsconfig['config']
         projects = jsconfig['projects']
@@ -25,20 +38,20 @@ def main(config_file):
         now = datetime.now()
         print "\n *** Compilation Test: %s ***\n"%(str(now))
 
-        print "Cleaning old build data:"
-        for project in projects:
-            name = project['name']
-            subcommand("Deleting %s"%name, ['rm', '-rf', name], current_path, "  ")
+        if repo_path != 'none':
+            print "Cleaning old build data:"
+            for project in projects:
+                name = project['name']
+                subcommand("Deleting %s"%name, ['rm', '-rf', name], current_path, "  ")
 
-        print "\nCloning projects:"
-        for project in projects:
-            name = project['name']
-            hgpath = os.path.join(repo_path, name)
-            prjpath = os.path.join(current_path, name)
-            print "Project %s:"%name
-            subcommand("Cloning %s ..."%name, ['hg', 'clone', hgpath], current_path, "  ")
-            subcommand("Updating %s ..."%name, ['hg', 'pull'], prjpath, "  ")
-
+            print "\nCloning projects:"
+            for project in projects:
+                name = project['name']
+                hgpath = os.path.join(repo_path, name)
+                prjpath = os.path.join(current_path, name)
+                print "Project %s:"%name
+                subcommand("Cloning %s ..."%name, ['hg', 'clone', hgpath], current_path, "  ")
+                subcommand("Updating %s ..."%name, ['hg', 'pull'], prjpath, "  ")
 
         print "\nBuilding recipes:"
         for project in projects:
@@ -55,32 +68,38 @@ def main(config_file):
             for branch in branches:
                 branch_name = branch['branch']
                 targets = branch['targets']
-                subcommand("Reseting %s to branch %s ..."%(name, branch_name),
-                        ['hg', 'up', branch_name], prjpath, "  ")
+                if repo_path != 'none':
+                    subcommand("Reseting %s to branch %s ..."%(name, branch_name),
+                            ['hg', 'up', branch_name], prjpath, "  ")
                 for target in targets:
                     target_name = target['target']
                     run_qemu = target['qemu']
                     if recipe == 'c':
                         build_recipe_C(current_path, name, "%s_config"%target_name,
-                                config, run_qemu, "  ")
+                                config, run_qemu, "  ", tests)
                     elif recipe == 'smart':
                         build_recipe_SM(current_path, name, "%s_config"%target_name,
-                                config, run_qemu, "  ")
+                                config, run_qemu, "  ", tests)
                     else:
                         print "Unknown recipe '%s', skipping..."%recipe
-        print "\n\n *** All builds are successful ***\n"
+        print "\n\n *** All recipes are successful ***\n"
 
-        print "Final cleaning:"
-        for project in projects:
-            name = project['name']
-            subcommand("Deleting %s"%name, ['rm', '-rf', name], current_path, "  ")
+        if repo_path != 'none':
+            print "Final cleaning:"
+            for project in projects:
+                name = project['name']
+                subcommand("Deleting %s"%name, ['rm', '-rf', name], current_path, "  ")
+
         sys.exit(0)
-    except Exception as e:
-        print "Invalid configuration file '%s': %s\n"%(config_file, str(e))
+    except Exception:
+        type, value, history = sys.exc_info()
+        traceback.print_exception(type, value, history, 10)
         sys.exit(-1)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 2:
+        main(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) > 1:
         main(sys.argv[1])
     else:
         main('config.json')

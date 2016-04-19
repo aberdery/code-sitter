@@ -1,9 +1,9 @@
 {
     "config":{
-        "repo_path":"/path/to/local/hg/repo",
-        "qemu_path":"/path/to/qemu-trustzone/bin",
-        "qemu_bin":"qemu-system-arm",
-        "qemu_args":"-kernel build/kernel/kernel.elf -cpu cortex-a15 -m 512 -M vexpress-a15 -serial stdio",
+        "repo-path":"/path/to/local/hg/repo",
+        "qemu-path":"/path/to/qemu-trustzone/bin",
+        "qemu-bin":"qemu-system-arm",
+        "qemu-args":"-kernel build/kernel/kernel.elf -cpu cortex-a15 -m 512 -M vexpress-a15 -serial stdio",
         "default-branch":"default"
     },
     "projects":[

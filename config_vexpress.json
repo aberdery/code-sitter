@@ -1,0 +1,32 @@
+{
+    "config":{
+        "repo-path":"none",
+        "qemu-path":"/home/aberdery/Work/arm_kernel/tools/qemu-trustzone/arm-softmmu",
+        "qemu-bin":"qemu-system-arm",
+        "qemu-args":"-kernel build/kernel/kernel.elf -cpu cortex-a15 -m 512 -M vexpress-a15 -serial stdio",
+        "default-branch":"default",
+        "toolchain":"arm-none-eabi-"
+    },
+    "projects":[
+    {
+        "name":"services",
+        "recipe":"none",
+        "default-branch":"default"
+    },
+    {
+        "name":"kernelC",
+        "recipe":"c",
+        "branches":[
+        {
+            "branch":"default",
+            "targets":[
+            {
+                "target":"vexpress",
+                "qemu":true
+            }
+            ]
+        }
+        ]
+    }
+    ]
+}
