@@ -30,10 +30,7 @@ def main(config_file, test_file=None):
         print "\n *** Compilation Test: %s ***\n"%(str(now))
 
         if repo_path != 'none':
-            print "Cleaning old build data:"
-            for project in projects:
-                name = project['name']
-                subcommand("Deleting %s"%name, ['rm', '-rf', name], current_path, "  ")
+            cleaning(current_path, repo_path, projects)
 
             print "\nCloning projects:"
             for project in projects:
@@ -41,8 +38,14 @@ def main(config_file, test_file=None):
                 hgpath = os.path.join(repo_path, name)
                 prjpath = os.path.join(current_path, name)
                 print "Project %s:"%name
-                subcommand("Cloning %s ..."%name, ['hg', 'clone', hgpath], current_path, "  ")
-                subcommand("Updating %s ..."%name, ['hg', 'pull'], prjpath, "  ")
+                r = subcommand("Cloning %s ..."%name, ['hg', 'clone', hgpath], current_path, "  ")
+                if r == 0:
+                    cleaning(current_path, repo_path, projects)
+                    sys.exit(-1)
+                r = subcommand("Updating %s ..."%name, ['hg', 'pull'], prjpath, "  ")
+                if r == 0:
+                    cleaning(current_path, repo_path, projects)
+                    sys.exit(-1)
 
         print "\nBuilding recipes:"
         for project in projects:
@@ -60,32 +63,48 @@ def main(config_file, test_file=None):
                 branch_name = branch['branch']
                 targets = branch['targets']
                 if repo_path != 'none':
-                    subcommand("Reseting %s to branch %s ..."%(name, branch_name),
+                    r = subcommand("Reseting %s to branch %s ..."%(name, branch_name),
                             ['hg', 'up', branch_name], prjpath, "  ")
+                    if r == 0:
+                        cleaning(current_path, repo_path, projects)
+                        sys.exit(-1)
                 for target in targets:
                     target_name = target['target']
                     run_qemu = target['qemu']
                     if recipe == 'c':
-                        build_recipe_C(current_path, name, "%s_config"%target_name,
+                        r = build_recipe_C(current_path, name, "%s_config"%target_name,
                                 config, run_qemu, "  ", test_file)
+                        if r == 0:
+                            cleaning(current_path, repo_path, projects)
+                            sys.exit(-1)
                     elif recipe == 'smart':
-                        build_recipe_SM(current_path, name, "%s_config"%target_name,
+                        r = build_recipe_SM(current_path, name, "%s_config"%target_name,
                                 config, run_qemu, "  ", test_file)
+                        if r == 0:
+                            cleaning(current_path, repo_path, projects)
+                            sys.exit(-1)
                     else:
                         print "Unknown recipe '%s', skipping..."%recipe
         print "\n\n *** All recipes are successful ***\n"
 
+        cleaning(current_path, repo_path, projects)
+        sys.exit(0)
+    except Exception:
         if repo_path != 'none':
-            print "Final cleaning:"
+            print "Exception cleaning:"
             for project in projects:
                 name = project['name']
                 subcommand("Deleting %s"%name, ['rm', '-rf', name], current_path, "  ")
 
-        sys.exit(0)
-    except Exception:
         type, value, history = sys.exc_info()
         traceback.print_exception(type, value, history, 10)
         sys.exit(-1)
+
+def cleaning(current_path, repo_path, projects):
+    if repo_path != 'none':
+        for project in projects:
+            name = project['name']
+            subcommand("Deleting %s"%name, ['rm', '-rf', name], current_path, "  ")
 
 if __name__ == "__main__":
     if len(sys.argv) > 2:

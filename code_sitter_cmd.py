@@ -149,9 +149,12 @@ def subcommand(cmd, cmdlist, path, prefix, display=True):
         print "%sCommand failure: %s"%(prefix, cmd)
         print "%sFull log:\n%s\n"%(prefix, cmd_output)
         print "%sCommand '%s' failed with error code %d"%(prefix, cmd, proc.returncode)
-        sys.exit(-1)
+
+        return 0
     if display == True:
         print "%sCommand completed successfully: %s"%(prefix, cmd)
+    return 1
+
 
 def setup_toolchain(prefix):
     # check for <prefix>-gcc as direct path or in os.environ["PATH"]
@@ -178,15 +181,27 @@ def build_recipe(path, name, target, config, run_qemu, prefix, test_file):
 
     print "%sBuilding %s:%s:"%(prefix, name,target)
     full_path = os.path.join(path, name)
-    subcommand("make mrproper", ['make', 'mrproper'], full_path, "%s  "%prefix)
-    subcommand("make distclean", ['make', 'distclean'], full_path, "%s  "%prefix)
-    subcommand("make %s %s"%(target, cross_compile), ['make', target, cross_compile], full_path, "%s  "%prefix)
+    r = subcommand("make mrproper", ['make', 'mrproper'], full_path, "%s  "%prefix)
+    if r == 0:
+        return r
+    r = subcommand("make distclean", ['make', 'distclean'], full_path, "%s  "%prefix)
+    if r == 0:
+        return r
+    r = subcommand("make %s %s"%(target, cross_compile), ['make', target, cross_compile], full_path, "%s  "%prefix)
+    if r == 0:
+        return r
     if test_file != None:
         tests = Tests(test_file, full_path, prefix)
         tests.config()
-    subcommand("make config %s"%cross_compile, ['make', 'config', cross_compile], full_path, "%s  "%prefix)
-    subcommand("make programs %s"%cross_compile, ['make', 'programs', cross_compile], full_path, "%s  "%prefix)
-    subcommand("make %s"%cross_compile, ['make', 'all', cross_compile], full_path, "%s  "%prefix)
+    r = subcommand("make config %s"%cross_compile, ['make', 'config', cross_compile], full_path, "%s  "%prefix)
+    if r == 0:
+        return r
+    r = subcommand("make programs %s"%cross_compile, ['make', 'programs', cross_compile], full_path, "%s  "%prefix)
+    if r == 0:
+        return r
+    r = subcommand("make %s"%cross_compile, ['make', 'all', cross_compile], full_path, "%s  "%prefix)
+    if r == 0:
+        return r
     print "%sBuilding %s:%s is a success.\n"%(prefix, name,target)
 
     # run qemu with/without tests
@@ -197,21 +212,25 @@ def build_recipe(path, name, target, config, run_qemu, prefix, test_file):
             qemu_cmd = [qemu_bin] + config['qemu-args'].split(' ')
         except Exception as e:
             print "Configuration issue: can't create qemu command: %s"%str(e)
-            sys.exit(-1)
+            return 0
         if test_file == None:
             RunCmd(qemu_cmd, PIPE, full_path, 5).Run()
         else:
             print "%sRunning tests for %s:%s"%(prefix, name,target)
             tests.run(emu_bin=qemu_bin, emu_args=config['qemu-args'].split(' '))
+    return 1
 
 def setup_recipe(path, name, prefix):
     full_path = os.path.join(path, name)
     print "%sPreparing %s/IMP."%(prefix, name)
-    subcommand("sh setup_kernel.sh", ['sh', 'setup_kernel.sh'], full_path, "%s  "%prefix)
+    r = subcommand("sh setup_kernel.sh", ['sh', 'setup_kernel.sh'], full_path, "%s  "%prefix)
+    return r
 
 def build_recipe_C(path, name, target, config, run_qemu, prefix, test_file=None):
-    build_recipe(path, name, target, config, run_qemu, prefix, test_file)
+    return build_recipe(path, name, target, config, run_qemu, prefix, test_file)
 
 def build_recipe_SM(path, name, target, config, run_qemu, prefix, test_file=None):
-    setup_recipe(path, name, prefix)
-    build_recipe(os.path.join(path, name), "IMP", target, config, run_qemu, prefix, test_file)
+    r = setup_recipe(path, name, prefix)
+    if r == 0:
+        return r
+    return build_recipe(os.path.join(path, name), "IMP", target, config, run_qemu, prefix, test_file)
