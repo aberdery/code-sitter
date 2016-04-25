@@ -17,15 +17,6 @@ def main(config_file, test_file=None):
         print "Unable to read configuration file '%s': %s\n"%(config_file, str(e))
         sys.exit(-1)
 
-    if test_file != None:
-        try:
-            fp = open(test_file)
-            tests = json.load(fp)
-            fp.close()
-        except Exception as e:
-            print "Unable to read test suite file '%s': %s\n"%(test_file, str(e))
-            sys.exit(-1)
-
     try:
         config = jsconfig['config']
         projects = jsconfig['projects']
@@ -76,10 +67,10 @@ def main(config_file, test_file=None):
                     run_qemu = target['qemu']
                     if recipe == 'c':
                         build_recipe_C(current_path, name, "%s_config"%target_name,
-                                config, run_qemu, "  ", tests)
+                                config, run_qemu, "  ", test_file)
                     elif recipe == 'smart':
                         build_recipe_SM(current_path, name, "%s_config"%target_name,
-                                config, run_qemu, "  ", tests)
+                                config, run_qemu, "  ", test_file)
                     else:
                         print "Unknown recipe '%s', skipping..."%recipe
         print "\n\n *** All recipes are successful ***\n"

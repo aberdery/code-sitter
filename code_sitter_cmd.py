@@ -2,12 +2,115 @@
 import sys, os, threading, json, pexpect
 from subprocess import Popen, PIPE
 
-TEST_SESSION={
-    "tests":0,
-    "pass":0,
-    "fail":0,
-    "inconclusive":0,
-    "not_run":0 }
+class Tests():
+    def __init__(self, test_file, root, prefix=None):
+        self.root      = root
+        self.test_dir  = 'tests'
+        self.test_name = 'test'
+        self.log_file  = os.path.join(self.root, 'default_tests_log.txt')
+        self.lib_file  = os.path.join(self.root, self.test_dir, 'tests_lib.json')
+        self.timeout   = 20
+        self.prefix    = '  ' + prefix
+        try:
+            fp = open(test_file)
+            self.tests = json.load(fp)
+            fp.close()
+        except Exception as e:
+            print "Unable to read test suite file '%s': %s\n"%(test_file, str(e))
+            sys.exit(-1)
+        try:
+            fp = open(self.lib_file)
+            self.lib = json.load(fp)
+            fp.close()
+        except Exception as e:
+            print "Unable to read tests lib file '%s': %s\n"%(self.lib_file, str(e))
+            sys.exit(-1)
+
+        self.session = {"tests":0, "pass":0, "fail":0, "inconclusive":0, "not_run":0}
+        self.list    = []
+
+    def run(self, emu_bin=None, emu_args=None):
+        f=open(self.log_file, 'w')
+        for test in self.list:
+            self.session['tests']+=1
+            tcmd = test['path']
+            if test['args'] != 'none':
+                tcmd += ' ' + test['args']
+            t = self.timeout
+            try:
+                t = test['timeout']
+            except:
+                pass
+            p = pexpect.spawn(emu_bin, emu_args, cwd=self.root, logfile=f)
+            p.expect('ProvenCore\[', timeout=t)
+            p.sendline(tcmd)
+            idx = p.expect(['<--- PNC TEST STATUS:', 'Command failed', pexpect.TIMEOUT], timeout=t)
+            if idx == 1:
+                print "%sTest %s: NOT RUN" % (self.prefix, test['path'])
+                self.session['not_run']+=1
+            elif idx == 2:
+                print "%sTest %s: TIMEOUT" % (self.prefix, test['path'])
+                self.session['fail']+=1
+            else:
+                idx=p.expect(['PASS', 'FAIL', 'INCONCLUSIVE'])
+                if idx == 0:
+                    print "%sTest %s: PASS" % (self.prefix, test['path'])
+                    self.session['pass']+=1
+                elif idx == 1:
+                    print "%sTest %s: FAIL" % (self.prefix, test['path'])
+                    self.session['fail']+=1
+                elif idx == 2:
+                    print "%sTest %s: INCONCLUSIVE" % (self.prefix, test['path'])
+                    self.session['inconclusive']+=1
+        f.close()
+        print "%sSUMMARY: %d tests, %d PASS, %d FAIL, %d INCONCLUSIVE, %d NOT RUN" % \
+        (self.prefix, self.session['tests'], self.session['pass'], self.session['fail'], \
+        self.session['inconclusive'], self.session['not_run'])
+
+    def config(self):
+        tmplist=[]
+
+        # Update config.mk to build init with only shell
+        afile = os.path.join(self.root, 'config.mk')
+        fp = open(afile, 'a')
+        fp.write('FEATURES += INIT_SHELL\n')
+        fp.close()
+        print "%s  config.mk updated successfully."%self.prefix
+
+        # Build list of tests to run looking for matching id between test suite and
+        # tests lib in order to find out test's path...
+        for test in self.tests['tests']:
+            found = 0
+            path = None
+            for domain in self.lib['domains']:
+                if domain['id'] == test['id'][0]:
+                    for case in domain['cases']:
+                        if test['id'] == case['id']:
+                            found = 1
+                            path = case['dir']
+                            if path not in tmplist:
+                                tmplist.append(case['dir'])
+                            break
+                if found == 1:
+                    break
+            if found == 0:
+                print "%s  test: [%s] is not a valid/known test."%(self.prefix, test['id'])
+                self.session['tests']+=1
+                self.session['not_run']+=1
+            else:
+                test['path'] = os.path.join(self.test_dir, path, self.test_name)
+                self.list.append(test)
+
+        # Create pnc_tests.mk containing all test domains to build/link in image
+        tfile = os.path.join(self.root, 'pnc_tests.mk')
+        subcommand("rm -f %s"%tfile, ['rm', '-f', tfile], self.root, "%s  "%self.prefix, display=False)
+        if len(tmplist) != 0:
+            fp = open(tfile, 'w')
+            fp.write('PNC_TESTS := \\\n')
+            for path in tmplist:
+                fp.write('  '+path+'\\\n')
+            fp.close()
+            print "%s  pnc_tests.mk created successfully."%self.prefix
 
 class RunCmd(threading.Thread):
     def __init__(self, cmd, outpipe, cwd, timeout):
@@ -50,119 +153,6 @@ def subcommand(cmd, cmdlist, path, prefix, display=True):
     if display == True:
         print "%sCommand completed successfully: %s"%(prefix, cmd)
 
-def runTests(tests, path, prefix, emu_bin=None, emu_args=None):
-    # Run all tests one by one
-    # For each test get end infos
-    # Compute results
-    global TEST_SESSION
-    prefix = '  ' + prefix
-    #default timeout: 20s
-    timeout = 20
-
-    f=open(os.path.join('default_tests_log.txt'), 'w')
-    for test in tests:
-        TEST_SESSION['tests']+=1
-        tcmd = test['path']
-        if test['args'] != 'none':
-            tcmd += ' ' + test['args']
-        t = timeout
-        try:
-            t = test['timeout']
-        except:
-            pass
-        p = pexpect.spawn(emu_bin, emu_args, cwd=path, logfile=f)
-        p.expect('ProvenCore\[', timeout=t)
-        p.sendline(tcmd)
-        idx = p.expect(['<--- PNC TEST STATUS:', 'Command failed', pexpect.TIMEOUT], timeout=t)
-        if idx == 1:
-            print "%sTest %s: NOT RUN" % (prefix, test['path'])
-            TEST_SESSION['not_run']+=1
-        elif idx == 2:
-            print "%sTest %s: TIMEOUT" % (prefix, test['path'])
-            TEST_SESSION['fail']+=1
-        else:
-            idx=p.expect(['PASS', 'FAIL', 'INCONCLUSIVE'])
-            if idx == 0:
-                print "%sTest %s: PASS" % (prefix, test['path'])
-                TEST_SESSION['pass']+=1
-            elif idx == 1:
-                print "%sTest %s: FAIL" % (prefix, test['path'])
-                TEST_SESSION['fail']+=1
-            elif idx == 2:
-                print "%sTest %s: INCONCLUSIVE" % (prefix, test['path'])
-                TEST_SESSION['inconclusive']+=1
-    f.close()
-    return TEST_SESSION
-
-def lookUpTestPath(id, tests_lib):
-    # TODO: clever parsing of tests lib in python ??
-    path = None
-    for domain in tests_lib['domains']:
-        if domain['id'] == id[0]:
-            for case in domain['cases']:
-                if id == case['id']:
-                    path = case['dir']
-    return path
-
-def configTests(tests, root, prefix=None):
-    global TEST_SESSION
-
-    # Update config.mk to build init with only shell
-    afile = os.path.join(root, 'config.mk')
-    fp = open(afile, 'a')
-    fp.write('FEATURES += INIT_SHELL\n')
-    fp.close()
-    print "%s  config.mk updated successfully."%prefix
-
-    # Retreive tests library
-    tests_lib_file = os.path.join(root, 'tests', 'tests_lib.json')
-    try:
-        fp = open(tests_lib_file)
-        tests_lib = json.load(fp)
-        fp.close()
-    except Exception as e:
-        print "Unable to read tests lib file '%s': %s\n"%(tests_lib_file, str(e))
-        sys.exit(-1)
-
-    # Build list of tests to run looking for matching id between test suite and
-    # tests lib in order to find out test's path...
-    tmplist=[]
-    tests_list=[]
-    for test in tests['tests']:
-        found = 0
-        path = None
-        for domain in tests_lib['domains']:
-            if domain['id'] == test['id'][0]:
-                for case in domain['cases']:
-                    if test['id'] == case['id']:
-                        found = 1
-                        path = case['dir']
-                        if path not in tmplist:
-                            tmplist.append(case['dir'])
-                        break
-            if found == 1:
-                break
-        if found == 0:
-            print "%s  test: [%s] is not a valid/known test."%(prefix, test['id'])
-            TEST_SESSION['tests']+=1
-            TEST_SESSION['not_run']+=1
-        else:
-            test['path'] = os.path.join('tests', path, 'test')
-            tests_list.append(test)
-
-    # Create pnc_tests.mk containing all test domains to build/link in image
-    tfile = os.path.join(root, 'pnc_tests.mk')
-    subcommand("rm -f %s"%tfile, ['rm', '-f', tfile], root, "%s  "%prefix, display=False)
-    if len(tmplist) != 0:
-        f = open(tfile, 'w')
-        f.write('PNC_TESTS := \\\n')
-        for path in tmplist:
-            f.write('  '+path+'\\\n')
-        f.close()
-        print "%s  pnc_tests.mk created successfully."%prefix
-
-    return tests_list
-
 def setup_toolchain(prefix):
     # check for <prefix>-gcc as direct path or in os.environ["PATH"]
     gcc = prefix + 'gcc'
@@ -176,7 +166,7 @@ def setup_toolchain(prefix):
         toolchain = prefix
     return toolchain
 
-def build_recipe(path, name, target, config, run_qemu, prefix, tests=None):
+def build_recipe(path, name, target, config, run_qemu, prefix, test_file):
     # Check if cross compile var is available
     try:
         cross_compile = "CROSS_COMPILE="
@@ -191,8 +181,9 @@ def build_recipe(path, name, target, config, run_qemu, prefix, tests=None):
     subcommand("make mrproper", ['make', 'mrproper'], full_path, "%s  "%prefix)
     subcommand("make distclean", ['make', 'distclean'], full_path, "%s  "%prefix)
     subcommand("make %s %s"%(target, cross_compile), ['make', target, cross_compile], full_path, "%s  "%prefix)
-    if tests != None:
-        tests_list = configTests(tests, full_path, prefix)
+    if test_file != None:
+        tests = Tests(test_file, full_path, prefix)
+        tests.config()
     subcommand("make config %s"%cross_compile, ['make', 'config', cross_compile], full_path, "%s  "%prefix)
     subcommand("make programs %s"%cross_compile, ['make', 'programs', cross_compile], full_path, "%s  "%prefix)
     subcommand("make %s"%cross_compile, ['make', 'all', cross_compile], full_path, "%s  "%prefix)
@@ -207,22 +198,20 @@ def build_recipe(path, name, target, config, run_qemu, prefix, tests=None):
         except Exception as e:
             print "Configuration issue: can't create qemu command: %s"%str(e)
             sys.exit(-1)
-        if tests == None:
+        if test_file == None:
             RunCmd(qemu_cmd, PIPE, full_path, 5).Run()
         else:
             print "%sRunning tests for %s:%s"%(prefix, name,target)
-            session=runTests(tests_list, full_path, prefix, emu_bin=qemu_bin, emu_args=config['qemu-args'].split(' '))
-            print "%sSUMMARY: %d tests, %d PASS, %d FAIL, %d INCONCLUSIVE, %d NOT RUN" % \
-            (prefix, session['tests'], session['pass'], session['fail'], session['inconclusive'], session['not_run'])
+            tests.run(emu_bin=qemu_bin, emu_args=config['qemu-args'].split(' '))
 
 def setup_recipe(path, name, prefix):
     full_path = os.path.join(path, name)
     print "%sPreparing %s/IMP."%(prefix, name)
     subcommand("sh setup_kernel.sh", ['sh', 'setup_kernel.sh'], full_path, "%s  "%prefix)
 
-def build_recipe_C(path, name, target, config, run_qemu, prefix, tests=None):
-    build_recipe(path, name, target, config, run_qemu, prefix, tests)
+def build_recipe_C(path, name, target, config, run_qemu, prefix, test_file=None):
+    build_recipe(path, name, target, config, run_qemu, prefix, test_file)
 
-def build_recipe_SM(path, name, target, config, run_qemu, prefix, tests=None):
+def build_recipe_SM(path, name, target, config, run_qemu, prefix, test_file=None):
     setup_recipe(path, name, prefix)
-    build_recipe(os.path.join(path, name), "IMP", target, config, run_qemu, prefix, tests)
+    build_recipe(os.path.join(path, name), "IMP", target, config, run_qemu, prefix, test_file)
