@@ -8,7 +8,7 @@ class Tests():
         self.test_dir  = 'tests'
         self.test_name = 'test'
         self.log_file  = os.path.join(self.root, 'default_tests_log.txt')
-        self.lib_file  = os.path.join(self.root, self.test_dir, 'tests_lib.json')
+        self.lib_file  = os.path.join(self.root, "..", "services", "tests_domains", 'tests_lib.json')
         self.timeout   = 20
         self.prefix    = '  ' + prefix
         try:
