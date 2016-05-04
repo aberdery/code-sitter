@@ -8,14 +8,15 @@
     },
     "projects":[
     {
-        "name":"kernelC",
-        "recipe":"c",
+        "name":"none",
+        "recipe":"none",
+        "revision":"none",
         "branches":[
         {
-            "branch":"default",
+            "branch":"none",
             "targets":[
             {
-                "target":"vexpress",
+                "target":"none",
                 "qemu":true
             }
             ]

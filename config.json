@@ -4,14 +4,8 @@
         "qemu-path":"/path/to/qemu-trustzone/bin",
         "qemu-bin":"qemu-system-arm",
         "qemu-args":"-kernel build/kernel/kernel.elf -cpu cortex-a15 -m 512 -M vexpress-a15 -serial stdio",
-        "default-branch":"default"
     },
     "projects":[
-    {
-        "name":"services",
-        "recipe":"none",
-        "default-branch":"default"
-    },
     {
         "name":"kernelC",
         "recipe":"c",

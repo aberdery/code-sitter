@@ -1,6 +1,6 @@
 {
     "tests":[
-        {"id":"1.1", "args":"none"},
+        {"id":"1.1", "args":"--level 5 --params \" 1 2 3 -12 0xFFF\" "},
         {"id":"1.2", "args":"none"},
         {"id":"1.2", "args":"none", "timeout":1},
         {"id":"1.2.2", "args":"none"}

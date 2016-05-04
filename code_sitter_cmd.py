@@ -7,7 +7,7 @@ class Tests():
         self.root      = root
         self.test_dir  = 'tests'
         self.test_name = 'test'
-        self.log_file  = os.path.join(self.root, 'default_tests_log.txt')
+        self.log_file  = os.path.join(self.root, "..", 'default_tests_log.txt')
         self.lib_file  = os.path.join(self.root, "..", "services", "tests_domains", 'tests_lib.json')
         self.timeout   = 20
         self.prefix    = '  ' + prefix
@@ -139,21 +139,47 @@ def which(file):
             return os.path.join(path, file)
     return None
 
-def subcommand(cmd, cmdlist, path, prefix, display=True):
+def subcommand(cmd, cmdlist, path, prefix, display=True, output=False, err=True):
+    '''
+    Parameters description:
+    cmd:     string describing command that will be executed.
+    cmdlist: list that will contain entire cmd & parameters and that will be
+             executed through subprocess.Popen
+    path:    path where to execute command
+    prefix:  prepend prefix to any display provided by subcommand.
+             May be simply ''
+    display: When True (default), command's end message is printed.
+             Otherwise, command will be silent unless it goes in error...
+             Can be used to False to avoid too much logging due to "non important"
+             commands...
+    output:  Default to False.
+             When True, subcommand returns status AND full log of the command
+    err:     Default to True: when subcommand goes in error, it displays error
+             messages.
+             When set to False, subcommand returns error status silently: this to
+             avoid logging known faulty commands (ex: look for branch or revision
+             in a Mercurial depot...).
+    '''
+    ret = 1
     proc = Popen(cmdlist, stdout=PIPE, cwd=path)
     cmd_output = ""
     while proc.poll() is None:
        cmd_output += proc.stdout.readline()
     cmd_output += proc.stdout.read()
     if proc.returncode != 0:
-        print "%sCommand failure: %s"%(prefix, cmd)
-        print "%sFull log:\n%s\n"%(prefix, cmd_output)
-        print "%sCommand '%s' failed with error code %d"%(prefix, cmd, proc.returncode)
+        if err == True:
+            print "%sCommand failure: %s"%(prefix, cmd)
+            print "%sFull log:\n%s\n"%(prefix, cmd_output)
+            print "%sCommand '%s' failed with error code %d"%(prefix, cmd, proc.returncode)
+        ret = 0
+    else:
+        if display == True:
+            print "%sCommand completed successfully: %s"%(prefix, cmd)
 
-        return 0
-    if display == True:
-        print "%sCommand completed successfully: %s"%(prefix, cmd)
-    return 1
+    if output == True:
+        return ret, cmd_output
+    else:
+        return ret
 
 
 def setup_toolchain(prefix):
@@ -205,7 +231,7 @@ def build_recipe(path, name, target, config, run_qemu, prefix, test_file):
     print "%sBuilding %s:%s is a success.\n"%(prefix, name,target)
 
     # run qemu with/without tests
-    if run_qemu:
+    if run_qemu == 'true':
         try:
             qemu_path = config['qemu-path']
             qemu_bin = os.path.join(qemu_path, config['qemu-bin'])

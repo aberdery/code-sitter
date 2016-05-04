@@ -1,0 +1,29 @@
+#!/bin/bash -e
+
+name=$1
+buildir=$2
+
+today=`date +%Y%m%d_%H%M%S`
+logname=${today}_${name}
+logdir="../logs/${logname}"
+
+mkdir -p ${logdir}
+
+cp ${buildir}/*.* $logdir
+mkdir -p "${logdir}/kernelC"
+mkdir -p "${logdir}/kernelSM"
+mkdir -p "${logdir}/services"
+if [ -d "${buildir}/kernelC/.hg" ]; then
+    cp -r "${buildir}/kernelC/.hg" "${logdir}/kernelC"
+fi
+if [ -d "${buildir}/kernelSM/.hg" ]; then
+    cp -r "${buildir}/kernelSM/.hg" "${logdir}/kernelSM"
+fi
+if [ -d "${buildir}/services/.hg" ]; then
+    cp -r "${buildir}/services/.hg" "${logdir}/services"
+fi
+
+cd "../logs"
+tar zcvf "${logname}.tgz" ${logname}
+rm -rf ${logname}
+cd -
