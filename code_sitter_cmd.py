@@ -12,7 +12,6 @@ class Tests():
             services_path=config['services-path']
         except:
             services_path=os.path.join(self.root, "..", "services")
-        print "##################### ABE DBG services: ", services_path
         self.lib_file  = os.path.join(services_path, "tests_domains", 'tests_lib.json')
         self.timeout   = 20
         self.prefix    = '  ' + prefix
@@ -38,7 +37,11 @@ class Tests():
         f=open(self.log_file, 'w')
         for test in self.list:
             self.session['tests']+=1
-            tcmd = test['path']
+            try:
+                tcmd = test['prefix']
+            except:
+                tcmd = ''
+            tcmd += test['path']
             if test['args'] != 'none':
                 tcmd += ' ' + test['args']
             t = self.timeout
