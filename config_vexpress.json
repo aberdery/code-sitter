@@ -4,7 +4,8 @@
         "qemu-path":"/home/aberdery/Work/arm_kernel/tools/qemu-trustzone/arm-softmmu",
         "qemu-bin":"qemu-system-arm",
         "qemu-args":"-kernel build/kernel/kernel.elf -cpu cortex-a15 -m 512 -M vexpress-a15 -serial stdio",
-        "toolchain":"arm-none-eabi-"
+        "toolchain":"arm-none-eabi-",
+        "services-path":"/media/truecrypt2/services"
     },
     "projects":[
     {

@@ -3,12 +3,17 @@ import sys, os, threading, json, pexpect
 from subprocess import Popen, PIPE
 
 class Tests():
-    def __init__(self, test_file, root, prefix=None):
+    def __init__(self, test_file, root, config, prefix=None):
         self.root      = root
         self.test_dir  = 'tests'
         self.test_name = 'test'
         self.log_file  = os.path.join(self.root, "..", 'default_tests_log.txt')
-        self.lib_file  = os.path.join(self.root, "..", "services", "tests_domains", 'tests_lib.json')
+        try:
+            services_path=config['services-path']
+        except:
+            services_path=os.path.join(self.root, "..", "services")
+        print "##################### ABE DBG services: ", services_path
+        self.lib_file  = os.path.join(services_path, "tests_domains", 'tests_lib.json')
         self.timeout   = 20
         self.prefix    = '  ' + prefix
         try:
@@ -217,7 +222,7 @@ def build_recipe(path, name, target, config, run_qemu, prefix, test_file):
     if r == 0:
         return r
     if test_file != None:
-        tests = Tests(test_file, full_path, prefix)
+        tests = Tests(test_file, full_path, config, prefix)
         tests.config()
     r = subcommand("make config %s"%cross_compile, ['make', 'config', cross_compile], full_path, "%s  "%prefix)
     if r == 0:
@@ -231,7 +236,7 @@ def build_recipe(path, name, target, config, run_qemu, prefix, test_file):
     print "%sBuilding %s:%s is a success.\n"%(prefix, name,target)
 
     # run qemu with/without tests
-    if run_qemu == 'true':
+    if run_qemu == 'true' or run_qemu == True:
         try:
             qemu_path = config['qemu-path']
             qemu_bin = os.path.join(qemu_path, config['qemu-bin'])
